@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard 1 — Corte 23/09/2025</title>
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js UMD (evita error de 'export' en navegadores/no-module) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- DataLabels (UMD) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <style>
+    body{font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+  </style>
+</head>
+<body class="bg-white text-gray-900">
+  <div class="p-6 space-y-6 max-w-[1400px] mx-auto">
+    <!-- Header -->
+    <div class="flex items-center gap-4">
+      <h1 class="text-xl font-semibold tracking-tight">Dashboard 1 — Corte 23/09/2025</h1>
+      <div class="ml-auto flex items-center gap-2 text-sm">
+        <span class="text-gray-500">Periodo</span>
+        <select id="periodoSelect" class="border rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"></select>
+      </div>
+    </div>
+
+    <!-- KPIs principales -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Pólizas</div>
+        <div id="kpiPol" class="text-2xl font-semibold">—</div>
+        <div id="kpiPolDelta" class="text-xs mt-1 text-gray-500">—</div>
+      </div></div>
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Prima (UF)</div>
+        <div id="kpiPri" class="text-2xl font-semibold">—</div>
+        <div id="kpiPriDelta" class="text-xs mt-1 text-gray-500">—</div>
+      </div></div>
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Ticket prom. (UF)</div>
+        <div id="kpiTicket" class="text-2xl font-semibold">—</div>
+        <div id="kpiSplit" class="text-xs text-gray-500 mt-1">—</div>
+      </div></div>
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Vendedores</div>
+        <div id="kpiVend" class="text-2xl font-semibold">—</div>
+        <div id="kpiVendExtra" class="text-xs text-gray-500 mt-1">—</div>
+      </div></div>
+    </div>
+
+    <!-- KPIs Dealers -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Dealers con Venta</div>
+        <div id="kpiDealAct" class="text-2xl font-semibold">—</div>
+        <div id="kpiDealActDelta" class="text-xs mt-1 text-gray-500">—</div>
+      </div></div>
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <div class="text-xs text-gray-500">Dealers Nuevos</div>
+        <div id="kpiDealNew" class="text-2xl font-semibold">—</div>
+        <div id="kpiDealNewDelta" class="text-xs mt-1 text-gray-500">—</div>
+      </div></div>
+    </div>
+
+    <!-- Gráficos principales -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <h3 class="text-sm font-semibold mb-2">Tendencia mensual — Pólizas</h3>
+        <div class="h-60"><canvas id="chartPolizasLine"></canvas></div>
+      </div></div>
+      <div class="shadow-sm rounded-xl border"><div class="p-4">
+        <h3 class="text-sm font-semibold mb-2">Tendencia mensual — Prima (UF)</h3>
+        <div class="h-60"><canvas id="chartPrimaBar"></canvas></div>
+      </div></div>
+    </div>
+
+    <!-- Mix por dealer -->
+    <div class="shadow-sm rounded-xl border"><div class="p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-sm font-semibold">Mix por dealer — % Pólizas</h3>
+        <span class="text-xs text-gray-500">Cada barra suma 100%</span>
+      </div>
+      <div class="h-56"><canvas id="chartMixDealer"></canvas></div>
+    </div></div>
+
+    <!-- Velocidad acumulada diaria (50/50: Resumen grande + Gráfico) -->
+    <div class="shadow-sm rounded-xl border"><div class="p-4">
+      <h3 class="text-sm font-semibold mb-3">Velocidad de venta — acumulado diario (Jul–Sep)</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+        <!-- Recuadro de cifras AGRANDADO -->
+        <div class="rounded-2xl border px-5 py-5 md:py-6 flex flex-col justify-center">
+          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-2">
+            <span class="font-medium text-gray-600 text-base md:text-lg" id="velMesSel">—</span>
+            <span class="font-semibold text-2xl md:text-3xl" id="velActual">—</span>
+            <span class="text-gray-400 text-base md:text-lg">vs</span>
+            <span class="font-medium text-gray-600 text-base md:text-lg" id="velMesPrev">—</span>
+            <span class="font-semibold text-2xl md:text-3xl" id="velPrevio">—</span>
+            <span id="velDelta" class="ml-1 text-base md:text-xl">—</span>
+            <span class="text-sm text-gray-400 md:text-base" id="velDia"> </span>
+          </div>
+        </div>
+        <!-- Gráfico reducido a la mitad -->
+        <div class="h-64 md:h-72"><canvas id="chartVelocidad"></canvas></div>
+      </div>
+    </div></div>
+
+    <!-- Tabla: Productividad + 3+ Ventas -->
+    <div class="shadow-sm rounded-xl border"><div class="p-4">
+      <h3 class="text-base font-semibold mb-3">Evolución Mensual — Productividad y 3+ Ventas</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-500 border-b">
+              <th class="py-2">Mes</th>
+              <th class="py-2 text-right">Pólizas</th>
+              <th class="py-2 text-right">Vendedores</th>
+              <th class="py-2 text-right">Productividad</th>
+              <th class="py-2 text-right">Con 3+ Ventas</th>
+              <th class="py-2 text-right">%</th>
+            </tr>
+          </thead>
+          <tbody id="tablaBody" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div></div>
+  </div>
+
+  <script>
+  // Aseguramos que el DOM esté listo antes de ejecutar cualquier lógica
+  document.addEventListener('DOMContentLoaded', function(){
+    // ================================
+    // Datos fuentes (idénticos al React)
+    // ================================
+    const PERIODOS = ["2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09"];
+    const LABEL = {"2025-02":"Feb 25","2025-03":"Mar 25","2025-04":"Abr 25","2025-05":"May 25","2025-06":"Jun 25","2025-07":"Jul 25","2025-08":"Ago 25","2025-09":"Sep 25"};
+
+    const KB_PRIMA = [
+      { periodo: "2025-02", dealer: "E. Kovacs", prima: 310 },
+      { periodo: "2025-02", dealer: "Otros", prima: 0 },
+      { periodo: "2025-03", dealer: "E. Kovacs", prima: 87 },
+      { periodo: "2025-03", dealer: "Otros", prima: 0 },
+      { periodo: "2025-04", dealer: "E. Kovacs", prima: 130 },
+      { periodo: "2025-04", dealer: "Otros", prima: 358 },
+      { periodo: "2025-05", dealer: "E. Kovacs", prima: 330 },
+      { periodo: "2025-05", dealer: "Otros", prima: 515 },
+      { periodo: "2025-06", dealer: "E. Kovacs", prima: 965 },
+      { periodo: "2025-06", dealer: "Otros", prima: 1284 },
+      { periodo: "2025-07", dealer: "E. Kovacs", prima: 998 },
+      { periodo: "2025-07", dealer: "Otros", prima: 1866 },
+      { periodo: "2025-08", dealer: "E. Kovacs", prima: 927 },
+      { periodo: "2025-08", dealer: "Otros", prima: 2856 },
+      { periodo: "2025-09", dealer: "E. Kovacs", prima: 626.8 },
+      { periodo: "2025-09", dealer: "Otros", prima: 1426.0 }
+    ];
+    const KB_POLIZAS = [
+      { periodo: "2025-02", dealer: "E. Kovacs", polizas: 9 },
+      { periodo: "2025-02", dealer: "Otros", polizas: 0 },
+      { periodo: "2025-03", dealer: "E. Kovacs", polizas: 3 },
+      { periodo: "2025-03", dealer: "Otros", polizas: 0 },
+      { periodo: "2025-04", dealer: "E. Kovacs", polizas: 4 },
+      { periodo: "2025-04", dealer: "Otros", polizas: 13 },
+      { periodo: "2025-05", dealer: "E. Kovacs", polizas: 13 },
+      { periodo: "2025-05", dealer: "Otros", polizas: 18 },
+      { periodo: "2025-06", dealer: "E. Kovacs", polizas: 38 },
+      { periodo: "2025-06", dealer: "Otros", polizas: 55 },
+      { periodo: "2025-07", dealer: "E. Kovacs", polizas: 39 },
+      { periodo: "2025-07", dealer: "Otros", polizas: 82 },
+      { periodo: "2025-08", dealer: "E. Kovacs", polizas: 37 },
+      { periodo: "2025-08", dealer: "Otros", polizas: 120 },
+      { periodo: "2025-09", dealer: "E. Kovacs", polizas: 29 },
+      { periodo: "2025-09", dealer: "Otros", polizas: 55 }
+    ];
+
+    // Acumulado diario (Jul-Ago heredado, Sep actualizado al 17)
+    const KB_VEL = [
+      { dia: 1,  "2025-07": 1,   "2025-08": 3,   "2025-09": 3 },
+      { dia: 2,  "2025-07": 3,   "2025-08": 7,   "2025-09": 9 },
+      { dia: 3,  "2025-07": 6,   "2025-08": 8,   "2025-09": 15 },
+      { dia: 4,  "2025-07": 12,  "2025-08": 10,  "2025-09": 17 },
+      { dia: 5,  "2025-07": 14,  "2025-08": 13,  "2025-09": 24 },
+      { dia: 6,  "2025-07": 14,  "2025-08": 18,  "2025-09": 32 },
+      { dia: 7,  "2025-07": 16,  "2025-08": 25,  "2025-09": 32 },
+      { dia: 8,  "2025-07": 22,  "2025-08": 37,  "2025-09": 36 },
+      { dia: 9,  "2025-07": 29,  "2025-08": 45,  "2025-09": 41 },
+      { dia: 10, "2025-07": 33,  "2025-08": 46,  "2025-09": 48 },
+      { dia: 11, "2025-07": 38, "2025-08": 52, "2025-09": 51 },
+      { dia: 12, "2025-07": 42, "2025-08": 59, "2025-09": 59 },
+      { dia: 13, "2025-07": 42, "2025-08": 64, "2025-09": 63 },
+      { dia: 14, "2025-07": 45, "2025-08": 72, "2025-09": 63 },
+      { dia: 15, "2025-07": 49, "2025-08": 84, "2025-09": 67 },
+      { dia: 16, "2025-07": 52, "2025-08": 92, "2025-09": 71 },
+      { dia: 17, "2025-07": 56,  "2025-08": 98,  "2025-09": 76 },
+      { dia: 18, "2025-07": 65,  "2025-08": 98,  "2025-09": 76 },
+      { dia: 19, "2025-07": 74,  "2025-08": 98,  "2025-09": 76 },
+      { dia: 20, "2025-07": 74,  "2025-08": 98,  "2025-09": 76 },
+      { dia: 21, "2025-07": 78,  "2025-08": 98,  "2025-09": 76 },
+      { dia: 22, "2025-07": 83,  "2025-08": 103, "2025-09": 79 },
+      { dia: 23, "2025-07": 85,  "2025-08": 110, "2025-09": 84 },
+      { dia: 24, "2025-07": 90,  "2025-08": 110, "2025-09": 84 },
+      { dia: 25, "2025-07": 97,  "2025-08": 118, "2025-09": 84 },
+      { dia: 26, "2025-07": 100, "2025-08": 126, "2025-09": 84 },
+      { dia: 27, "2025-07": 100, "2025-08": 131, "2025-09": 84 },
+      { dia: 28, "2025-07": 106, "2025-08": 138, "2025-09": 84 },
+      { dia: 29, "2025-07": 110, "2025-08": 147, "2025-09": 84 },
+      { dia: 30, "2025-07": 115, "2025-08": 156, "2025-09": 84 },
+      { dia: 31, "2025-07": 121, "2025-08": 157, "2025-09": 84 }
+    ];
+
+    // === BLOQUE FIJO (PARAMETRIZADO POR PANEL BASE) ===
+    // A partir de ahora, Jul 25 y Ago 25 se toman SIEMPRE del Panel Base.
+    // Solo se actualiza el mes en curso (Sep 25) con los archivos del mes.
+    (function aplicarPanelBase(){
+      // Indexado 1..31 para facilitar asignación por día
+      const PANEL_BASE_JUL = [null, 6,10,15,17,23,31,31,31,31,33,34,36,38,40,46,55,59,61,65,70,77,81,85,89,93,97,100,106,110,115,121];
+      const PANEL_BASE_AGO = [null, 3,7,8,10,13,18,25,37,45,46,52,59,64,72,84,92,98,105,110,119,124,130,141,146,148,126,131,138,147,156,156];
+      for (let d=1; d<=31; d++){
+        const row = KB_VEL.find(x=>x.dia===d);
+        if (!row) continue;
+        if (PANEL_BASE_JUL[d] != null) row["2025-07"] = PANEL_BASE_JUL[d];
+        if (PANEL_BASE_AGO[d] != null) row["2025-08"] = PANEL_BASE_AGO[d];
+      }
+    })();
+    // === FIN BLOQUE PANEL BASE ===
+
+    // Ajuste de seguridad: forzar monotonicidad (no-decreciente) en series acumuladas
+    (function forzarMonotonicidad(){
+      function enforce(periodo){
+        let prev = -Infinity;
+        for (let i=0;i<KB_VEL.length;i++){
+          const v = KB_VEL[i][periodo];
+          if (v==null) continue;
+          if (!Number.isFinite(prev)) { prev = v; }
+          else if (v < prev) { KB_VEL[i][periodo] = prev; }
+          else { prev = v; }
+        }
+      }
+      enforce('2025-07');
+      enforce('2025-08');
+    })();
+
+    const KB_VENDEDORES = [
+      { periodo: "2025-02", conVenta: 5, nuevos: 5, pct3: 0.4 },
+      { periodo: "2025-03", conVenta: 2, nuevos: 1, pct3: 0.5 },
+      { periodo: "2025-04", conVenta: 11, nuevos: 9, pct3: 0.273 },
+      { periodo: "2025-05", conVenta: 21, nuevos: 16, pct3: 0.286 },
+      { periodo: "2025-06", conVenta: 41, nuevos: 26, pct3: 0.439 },
+      { periodo: "2025-07", conVenta: 54, nuevos: 24, pct3: 0.407 },
+      { periodo: "2025-08", conVenta: 69, nuevos: 26, pct3: 0.362 },
+      { periodo: "2025-09", conVenta: 37, nuevos: 9, pct3: 0.2162 }
+    ];
+    const KB_DEALERS = [
+      { periodo: "2025-02", activos: 5, nuevos: 5 },
+      { periodo: "2025-03", activos: 6, nuevos: 1 },
+      { periodo: "2025-04", activos: 10, nuevos: 4 },
+      { periodo: "2025-05", activos: 15, nuevos: 5 },
+      { periodo: "2025-06", activos: 21, nuevos: 6 },
+      { periodo: "2025-07", activos: 29, nuevos: 8 },
+      { periodo: "2025-08", activos: 27, nuevos: 4 },
+      { periodo: "2025-09", activos: 19, nuevos: 3 }
+    ];
+
+    // Meses visibles en el gráfico de velocidad (los 3 últimos)
+    const MESES_VEL = ["2025-07","2025-08","2025-09"];
+
+    // ================================
+    // Helpers de formato
+    // ================================
+    const fmt0 = (n)=> Number.isFinite(n)? n.toLocaleString('es-CL', {maximumFractionDigits:0}): '—';
+    const fmt1 = (n)=> (n==null||!isFinite(n))? '—': (Math.round(n*10)/10).toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1});
+    const fmt2 = (n)=> (n==null||!isFinite(n))? '—': (Math.round(n*100)/100).toLocaleString('es-CL', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const pct = (v)=> (v==null)? '—': `${Math.round(v*100)}%`;
+    const pct1 = (v)=> (v==null)? '—': `${(v*100).toFixed(0)}%`;
+    const deltaTxt = (v)=> v==null ? '—' : `${v>0? '▲ ' : v<0? '▼ ' : ''}${(Math.abs(v)*100).toFixed(1)}%`;
+    const deltaClass = (v) => v == null ? 'text-gray-500' : v > 0 ? 'text-green-600' : v < 0 ? 'text-red-600' : 'text-gray-600';
+
+    // ================================
+    // Utilidad: último día con movimiento (cambio real en acumulado)
+    // ================================
+    function ultimoDiaConMovimiento(periodo){
+      let lastChange=null;
+      let prev=null;
+      for (let i=0; i<KB_VEL.length; i++){
+        const v=KB_VEL[i][periodo];
+        if (v==null) continue;
+        if (prev===null || v!==prev){
+          lastChange=KB_VEL[i].dia;
+          prev=v;
+        }
+      }
+      return lastChange;
+    }
+
+    // Día de comparación: usa el día del corte del encabezado (dd/mm) o, si falla, el último día con movimiento
+    function diaCorteDesdeHeader(){
+      try {
+        const h1El = document.querySelector('h1');
+        const h1 = h1El ? h1El.textContent : '';
+        const m = h1.match(/Corte\s+(\d{2})\//);
+        return m ? parseInt(m[1],10) : null;
+      } catch(e){ return null; }
+    }
+
+    // ================================
+    // Derivaciones para gráficos
+    // ================================
+    const MES_CORTO = { '01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun','07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic' };
+    const labelMesCorto = (periodo)=> MES_CORTO[periodo.slice(5,7)];
+
+    const seriePol = (()=>{ const byP={}; KB_POLIZAS.forEach(r=>{ byP[r.periodo]=(byP[r.periodo]||0)+r.polizas; }); return PERIODOS.map(p=>({ mes: labelMesCorto(p), polizas: byP[p]||0 })); })();
+    const seriePri = (()=>{ const byP={}; KB_PRIMA.forEach(r=>{ byP[r.periodo]=(byP[r.periodo]||0)+r.prima; }); return PERIODOS.map(p=>({ mes: labelMesCorto(p), prima: byP[p]||0 })); })();
+    const serieMixPct = PERIODOS.map(p=>{
+      const ek=KB_POLIZAS.filter(r=>r.periodo===p && r.dealer==='E. Kovacs').reduce((a,r)=>a+r.polizas,0);
+      const ot=KB_POLIZAS.filter(r=>r.periodo===p && r.dealer==='Otros').reduce((a,r)=>a+r.polizas,0);
+      const tot=ek+ot;
+      const ekpct=tot? (ek/tot)*100:0;
+      const otpct=tot? (ot/tot)*100:0;
+      return { mes: labelMesCorto(p), EKpct: ekpct, Otrspct: otpct };
+    });
+
+    // ================================
+    // Render tabla Productividad + 3+
+    // ================================
+    function renderTabla(){
+      const tbody=document.getElementById('tablaBody');
+      tbody.innerHTML='';
+      const lastP=PERIODOS[PERIODOS.length-1];
+      PERIODOS.forEach(p=>{
+        const pol=KB_POLIZAS.filter(r=>r.periodo===p).reduce((a,r)=>a+r.polizas,0);
+        const v=KB_VENDEDORES.find(x=>x.periodo===p)||{conVenta:0,pct3:0};
+        const vend=v.conVenta||0; const prod=vend?pol/vend:0; const con3=Math.round(vend*(v.pct3||0));
+        const tr=document.createElement('tr'); if(p===lastP) tr.className='bg-blue-50/60';
+        tr.innerHTML=`<td class="py-2 ${p===lastP?'font-semibold':''}">${LABEL[p]}</td>
+          <td class="py-2 text-right ${p===lastP?'font-semibold':''}">${fmt0(pol)}</td>
+          <td class="py-2 text-right ${p===lastP?'font-semibold':''}">${fmt0(vend)}</td>
+          <td class="py-2 text-right font-semibold text-blue-600">${fmt2(prod)}</td>
+          <td class="py-2 text-right ${p===lastP?'font-semibold':''}">${fmt0(con3)}</td>
+          <td class="py-2 text-right font-semibold text-blue-600">${pct1(v.pct3||0)}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ================================
+    // Inicialización de Select de Período
+    // ================================
+    const sel=document.getElementById('periodoSelect');
+    PERIODOS.forEach(p=>{ const opt=document.createElement('option'); opt.value=p; opt.textContent=LABEL[p]; sel.appendChild(opt); });
+    sel.value='2025-09';
+
+    // ================================
+    // Charts (con protección y margen para etiquetas)
+    // ================================
+    if (window.ChartDataLabels) { Chart.register(ChartDataLabels); }
+
+    const maxPolVal=Math.max(...seriePol.map(x=>x.polizas));
+    const maxPriVal=Math.max(...seriePri.map(x=>x.prima));
+
+    const polCtx=document.getElementById('chartPolizasLine').getContext('2d');
+    const chartPolizasLine=new Chart(polCtx,{
+      type:'line',
+      data:{ labels:seriePol.map(x=>x.mes), datasets:[
+        { label:'Pólizas', data:seriePol.map(x=>x.polizas), borderWidth:2, tension:.2, pointRadius:3, datalabels:{ display:true, align:'top', anchor:'end', formatter:(v)=>fmt0(v), offset:6, clip:false, clamp:true } }
+      ]},
+      options:{ maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ enabled:true }, datalabels:{ display:true, color: undefined } }, scales:{ y:{ display:false, suggestedMax: Math.ceil(maxPolVal * 1.2) }, x:{ ticks:{ autoSkip:false } } } }
+    });
+
+    const priCtx=document.getElementById('chartPrimaBar').getContext('2d');
+    const chartPrimaBar=new Chart(priCtx,{
+      type:'bar',
+      data:{ labels:seriePri.map(x=>x.mes), datasets:[
+        { label:'Prima (UF)', data:seriePri.map(x=>x.prima) }
+      ]},
+      options:{ maintainAspectRatio:false, scales:{ y:{ display:false, suggestedMax: Math.ceil(maxPriVal * 1.15) } },
+        plugins:{ legend:{ display:true }, tooltip:{ callbacks:{ label:(ctx)=>`${fmt0(ctx.parsed.y)} UF` } }, datalabels:{
+          display:true, align:'top', anchor:'end', offset:6, formatter:(v)=>fmt0(v), clip:false, clamp:true
+        } }
+      }
+    });
+
+    const mixCtx=document.getElementById('chartMixDealer').getContext('2d');
+    const chartMixDealer=new Chart(mixCtx,{
+      type:'bar',
+      data:{ labels:serieMixPct.map(x=>x.mes), datasets:[
+        { label:'E. Kovacs', data:serieMixPct.map(x=>x.EKpct), stack:'A', backgroundColor:'#2563eb' },
+        { label:'Otros', data:serieMixPct.map(x=>x.Otrspct), stack:'A', backgroundColor:'#9ca3af' }
+      ]},
+      options:{
+        maintainAspectRatio:false,
+        scales:{ y:{ display:true, suggestedMax: 100 } },
+        plugins:{ legend:{ display:true }, tooltip:{ callbacks:{ label:(ctx)=>`${Math.round(ctx.raw)}%` } }, datalabels:{
+          display:true, color:'#000', formatter:(v)=>`${Math.round(v)}%`, anchor:'center', align:'center', clip:true
+        } }
+      }
+    });
+
+    const velCtx=document.getElementById('chartVelocidad').getContext('2d');
+    const currPeriod = MESES_VEL[MESES_VEL.length-1];
+    const cutDayCal = diaCorteDesdeHeader() ?? ultimoDiaConMovimiento(currPeriod);
+    // Exponer variables de prueba de forma segura
+    window.__CUT_DAY__ = cutDayCal;
+    window.__CURR_PER__ = currPeriod;
+    const dataCurr = KB_VEL.map(x => (x.dia <= cutDayCal ? x[currPeriod] : null));
+    const chartVelocidad=new Chart(velCtx,{
+      type:'line',
+      data:{ labels:KB_VEL.map(x=>x.dia), datasets:[
+        { label: labelMesCorto(MESES_VEL[0]), data:KB_VEL.map(x=>x[MESES_VEL[0]]), borderWidth:2, pointRadius:0 },
+        { label: labelMesCorto(MESES_VEL[1]), data:KB_VEL.map(x=>x[MESES_VEL[1]]), borderWidth:2, pointRadius:0 },
+        { label: labelMesCorto(currPeriod), data:dataCurr, borderWidth:2, pointRadius:0 }
+      ]},
+      options:{ maintainAspectRatio:false, spanGaps:false, plugins:{ legend:{ display:true }, tooltip:{ enabled:true }, datalabels:{ display:false } } }
+    });
+
+    // ================================
+    // UI dinámico según período
+    // ================================
+    function updateUI(){
+      const periodo=sel.value; const idx=PERIODOS.indexOf(periodo); const prev=idx>0?PERIODOS[idx-1]:null;
+      const pol=KB_POLIZAS.filter(r=>r.periodo===periodo).reduce((a,r)=>a+r.polizas,0);
+      const pri=KB_PRIMA.filter(r=>r.periodo===periodo).reduce((a,r)=>a+r.prima,0);
+      const polPrev=prev?KB_POLIZAS.filter(r=>r.periodo===prev).reduce((a,r)=>a+r.polizas,0):null;
+      const priPrev=prev?KB_PRIMA.filter(r=>r.periodo===prev).reduce((a,r)=>a+r.prima,0):null;
+      const dPol=(polPrev&&polPrev>0)?(pol-polPrev)/polPrev:null; const dPri=(priPrev&&priPrev>0)?(pri-priPrev)/priPrev:null;
+      const priK=KB_PRIMA.filter(r=>r.periodo===periodo&&r.dealer==='E. Kovacs').reduce((a,r)=>a+r.prima,0);
+      const priO=KB_PRIMA.filter(r=>r.periodo===periodo&&r.dealer==='Otros').reduce((a,r)=>a+r.prima,0);
+      const ticket=pol?(pri/pol):null; const vend=KB_VENDEDORES.find(v=>v.periodo===periodo)||{conVenta:0,nuevos:0,pct3:0};
+      const dealersMes=KB_DEALERS.find(d=>d.periodo===periodo)||{activos:0,nuevos:0};
+      const prevRow = prev ? KB_DEALERS.find(d=>d.periodo===prev) : null;
+      const actPrev = prevRow ? prevRow.activos : null;
+      const newPrev = prevRow ? prevRow.nuevos : null;
+      const dAct=(actPrev&&actPrev>0)?(dealersMes.activos-actPrev)/actPrev:null; const dNew=(newPrev&&newPrev>0)?(dealersMes.nuevos-newPrev)/newPrev:null;
+
+      document.getElementById('kpiPol').textContent=fmt0(pol);
+      const polDelta=document.getElementById('kpiPolDelta'); polDelta.textContent=`vs ${prev?LABEL[prev]:'—'}: ${deltaTxt(dPol)}`; polDelta.className=`text-xs mt-1 ${deltaClass(dPol)}`;
+      document.getElementById('kpiPri').textContent=fmt0(pri);
+      const priDelta=document.getElementById('kpiPriDelta'); priDelta.textContent=`vs ${prev?LABEL[prev]:'—'}: ${deltaTxt(dPri)}`; priDelta.className=`text-xs mt-1 ${deltaClass(dPri)}`;
+      document.getElementById('kpiTicket').textContent=fmt1(ticket); document.getElementById('kpiSplit').textContent=`EK ${fmt0(priK)} / Otros ${fmt0(priO)}`;
+      document.getElementById('kpiVend').textContent=fmt0(vend.conVenta); document.getElementById('kpiVendExtra').textContent=`Nuevos ${fmt0(vend.nuevos)} · ≥3 ventas ${pct(vend.pct3)}`;
+      document.getElementById('kpiDealAct').textContent=fmt0(dealersMes.activos); const dealActDelta=document.getElementById('kpiDealActDelta'); dealActDelta.textContent=`vs ${prev?LABEL[prev]:'—'}: ${deltaTxt(dAct)}`; dealActDelta.className=`text-xs mt-1 ${deltaClass(dAct)}`;
+      document.getElementById('kpiDealNew').textContent=fmt0(dealersMes.nuevos); const dealNewDelta=document.getElementById('kpiDealNewDelta'); dealNewDelta.textContent=`vs ${prev?LABEL[prev]:'—'}: ${deltaTxt(dNew)}`; dealNewDelta.className=`text-xs mt-1 ${deltaClass(dNew)}`;
+
+      // Resumen velocidad (mismos ids, ahora en recuadro grande)
+      const mesesVel=MESES_VEL;
+      const velMesSel=document.getElementById('velMesSel');
+      const velMesPrev=document.getElementById('velMesPrev');
+      const velActual=document.getElementById('velActual');
+      const velPrevio=document.getElementById('velPrevio');
+      const velDelta=document.getElementById('velDelta');
+      const velDia=document.getElementById('velDia');
+      if(mesesVel.includes(periodo)){
+        const diaHoy = diaCorteDesdeHeader() ?? ultimoDiaConMovimiento(periodo); // compara día con día
+        const actual = (diaHoy!=null)?KB_VEL.find(x=>x.dia===diaHoy)[periodo]:null;
+        const prevMes = mesesVel[mesesVel.indexOf(periodo)-1]||null;
+        const previo = (prevMes&&diaHoy!=null)?KB_VEL.find(x=>x.dia===diaHoy)[prevMes]:null;
+        const d = (previo&&previo>0&&actual!=null)?((actual-previo)/previo):null;
+        velMesSel.textContent=LABEL[periodo];
+        velMesPrev.textContent=prevMes?LABEL[prevMes]:'—';
+        velActual.textContent=fmt0(actual);
+        velPrevio.textContent=fmt0(previo);
+        velDelta.textContent=deltaTxt(d);
+        velDelta.className=deltaClass(d);
+        velDia.textContent=diaHoy?`(día ${diaHoy})`:'';
+      } else {
+        velMesSel.textContent='—';
+        velMesPrev.textContent='—';
+        velActual.textContent='—';
+        velPrevio.textContent='—';
+        velDelta.textContent='—';
+        velDelta.className='text-gray-500';
+        velDia.textContent='';
+      }
+
+      renderTabla();
+    }
+
+    // Primera renderización
+    updateUI();
+
+    // Listener del select
+    document.getElementById('periodoSelect').addEventListener('change', updateUI);
+
+    // ================================
+    // PRUEBAS RÁPIDAS (se muestran en consola)
+    // ================================
+    (function selfTests(){
+      const tests = [];
+      tests.push({name:'Chart global disponible', pass: typeof Chart === 'function'});
+      tests.push({name:'Serie Pólizas coincide con períodos', pass: seriePol.length === PERIODOS.length});
+      tests.push({name:'Último día con movimiento (Sep) == 23', pass: ultimoDiaConMovimiento('2025-09') === 23});
+      tests.push({name:'KPI de Pólizas (Sep) == 84', pass: document.getElementById('kpiPol').textContent.trim() === '84'});
+      // Corte del mes en curso (sin extensión)
+      const dsCurr = [...chartVelocidad.data.datasets].find(d=>d.label===labelMesCorto(window.__CURR_PER__));
+      tests.push({name:'Serie mes en curso cortada en día de corte', pass: dsCurr && dsCurr.data.slice(window.__CUT_DAY__).every(v=>v==null)});
+      // Etiquetas
+      tests.push({name:'Polizas: eje Y oculto', pass: chartPolizasLine.options.scales.y.display === false});
+      tests.push({name:'Polizas: datalabels activado', pass: chartPolizasLine.options.plugins.datalabels && chartPolizasLine.options.plugins.datalabels.display === true});
+      tests.push({name:'Etiquetas cortas en Polizas', pass: chartPolizasLine.data.labels.every(lbl=>lbl.indexOf('25')===-1)});
+      tests.push({name:'Velocidad: leyenda sin año', pass: chartVelocidad.data.datasets.every(ds=>(ds.label||'').indexOf('25')===-1)});
+      tests.push({name:'Etiquetas sin año en Polizas (1er label=Feb)', pass: chartPolizasLine.data.labels[0]==='Feb'});
+      tests.push({name:'Etiquetas sin año en Prima (1er label=Feb)', pass: chartPrimaBar.data.labels[0]==='Feb'});
+      /* Validaciones adicionales */
+      tests.push({name:'Suma pólizas Sep = 84', pass: KB_POLIZAS.filter(p=>p.periodo==='2025-09').reduce((a,r)=>a+r.polizas,0)===84});
+      tests.push({name:'Suma prima Sep ≈ 2052.80 UF', pass: Math.abs(KB_PRIMA.filter(p=>p.periodo==='2025-09').reduce((a,r)=>a+r.prima,0)-2052.80)<0.01});
+      tests.push({name:'Velocidad (día corte) = Pólizas Sep', pass: (KB_VEL.find(x=>x.dia===ultimoDiaConMovimiento('2025-09'))['2025-09']||0)===KB_POLIZAS.filter(p=>p.periodo==='2025-09').reduce((a,r)=>a+r.polizas,0)});
+      tests.push({name:'Velocidad día 23: Sep=84 vs Ago=110 (auditado Panel Base)', pass: (KB_VEL.find(x=>x.dia===23)["2025-09"]===84) && (KB_VEL.find(x=>x.dia===23)["2025-08"]===110)});
+      // Serie Ago sin caídas (monótona)
+      tests.push({name:'Ago 25 acumulado no decrece', pass: (function(){ let ok=true, prev=-Infinity; for (const r of KB_VEL){ const v=r["2025-08"]; if(v==null) continue; if(!Number.isFinite(prev)) prev=v; else if(v<prev){ ok=false; break;} else prev=v;} return ok; })()});
+      const ok = tests.every(t=>t.pass);
+      console.groupCollapsed(`Pruebas rápidas UI — ${ok?'OK ✅':'FALLAS ⚠️'}`);
+      tests.forEach(t=>console.log(`${t.pass?'✅':'❌'}  ${t.name}`));
+      console.groupEnd();
+    })();
+  });
+  </script>
+</body>
+</html>
