@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Panel C — Matriz Vintage (pólizas)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0b0c0f; --card:#141821; --muted:#94a3b8; --text:#e2e8f0; --accent:#22c55e; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; background: var(--bg); color: var(--text); }
+    .wrap { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 22px; margin: 0 0 14px; }
+    .controls { display:flex; gap:8px; align-items:center; flex-wrap: wrap; margin-bottom: 14px; }
+    .btn { border:1px solid #2a3140; background:#1c2230; color:var(--text); padding:8px 12px; border-radius: 999px; cursor:pointer; font-weight:600; }
+    .btn[aria-pressed="true"] { background: var(--accent); color:#06110a; border-color: transparent; }
+    select { appearance:none; background:#1c2230; border:1px solid #2a3140; color:var(--text); padding:8px 12px; border-radius: 999px; font-weight:600; }
+    .card { background: var(--card); border: 1px solid #212838; border-radius: 14px; box-shadow: 0 1px 0 rgba(255,255,255,.04) inset; }
+    .card h2 { margin: 0; font-size: 14px; color: var(--muted); font-weight:600; padding: 12px 14px; border-bottom: 1px solid #1f2533; }
+    .card .content { padding: 14px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #1f2533; }
+    thead th { color: var(--muted); font-weight:600; font-size: 12px; position: sticky; top: 0; background: #141821; z-index: 1; }
+    tbody td { font-size: 13px; }
+    .row { cursor: pointer; }
+    .row:hover { background: rgba(148,163,184,.08); }
+    .row.selected { outline: 2px solid #22c55e; outline-offset: 2px; }
+    .cohortCell { border-left: 4px solid transparent; }
+    .legend { display:flex; align-items:center; gap:6px; margin-top: 8px; }
+    .swatch { height: 12px; width: 48px; border-radius: 6px; }
+    .grid { display:grid; grid-template-columns: 1fr; gap:14px; }
+    @media (min-width: 900px){ .grid { grid-template-columns: 1fr; } }
+    details.dev { margin-top: 10px; }
+    details.dev summary { cursor: pointer; color: var(--muted); }
+    .pass { color: #22c55e; }
+    .fail { color: #ef4444; }
+    /* KPIs */
+    .kpi-grid { display:grid; grid-template-columns: repeat(2, minmax(180px,1fr)); gap:10px; }
+    @media (min-width: 900px){ .kpi-grid { grid-template-columns: repeat(6, minmax(120px,1fr)); } }
+    .kpi { background:#101521; border:1px solid #1d2433; border-radius: 12px; padding: 10px; }
+    .kpi-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .kpi-value { font-weight: 700; font-size: 20px; }
+    .kpi-sub { font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Panel C — Matriz Vintage (pólizas)</h1>
+    <div class="controls">
+      <button id="btn-cancel" class="btn" aria-pressed="true">Cancelación %</button>
+      <button id="btn-survive" class="btn" aria-pressed="false">Supervivencia %</button>
+      <label for="sort" class="muted" style="margin-left:6px">Ordenar por</label>
+      <select id="sort">
+        <option value="cohort">Cohorte (asc)</option>
+        <option value="N">Vendidas N (desc)</option>
+        <option value="final">Pérdida final % (desc)</option>
+        <option value="peak13">Pico m1–m3 % (desc)</option>
+      </select>
+      <span class="muted" style="margin-left:auto">Corte: 01-oct-2025 · Solo meses observados</span>
+    </div>
+
+    <div class="grid">
+      <div class="card" id="card-kpis">
+        <h2>KPIs por pólizas</h2>
+        <div class="content">
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-title">Emisiones (Feb–Ago)</div>
+              <div class="kpi-value" id="kpi-emis">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Canceladas observadas</div>
+              <div class="kpi-value" id="kpi-canc-obs">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Fuga observada</div>
+              <div class="kpi-value" id="kpi-rate-obs">—</div>
+              <div class="kpi-sub" id="kpi-sub-obs">(≤90d + ≥90d vistos)</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Cola &gt;90d (jóvenes)</div>
+              <div class="kpi-value" id="kpi-tail-add">—</div>
+              <div class="kpi-sub">≈ 0,67 × 28</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Canceladas proyectadas 24m</div>
+              <div class="kpi-value" id="kpi-canc-proj">—</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-title">Fuga 24m</div>
+              <div class="kpi-value" id="kpi-rate-proj">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h2 id="matrix-title">Cancelación acumulada % por cohorte y edad</h2>
+        <div class="content">
+          <div style="overflow:auto; max-height: 64vh">
+            <table id="matrix">
+              <thead>
+                <tr>
+                  <th>Cohorte</th>
+                  <th>N</th>
+                  <th class="center">m0</th>
+                  <th class="center">m1</th>
+                  <th class="center">m2</th>
+                  <th class="center">m3</th>
+                  <th class="center">m4</th>
+                  <th class="center">m5</th>
+                  <th class="center">m6</th>
+                  <th class="center">Final %</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="legend muted">
+            <span>Escala:</span>
+            <div id="legend-swatches" style="display:flex;gap:4px"></div>
+            <span id="legend-caption"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="card-buckets">
+        <h2>Cancelaciones por duración (conteo)</h2>
+        <div class="content">
+          <table id="bucket-table">
+            <thead>
+              <tr><th>Rango de duración</th><th>Canceladas</th><th>% sobre canceladas</th></tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+              <tr><th>Total</th><th id="bucket-total">—</th><th id="bucket-total-pct">100%</th></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="muted" id="selected-note">Tip: haz clic en una fila para seleccionarla (luego podremos abrir el Panel D/E con esa cohorte).</div>
+
+      <details class="dev" id="dev-tests">
+        <summary>Test Output (dev)</summary>
+        <div id="test-output" class="muted"></div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    // ======= Datos base recalculados (ventas Feb–Ago 2025 + cancelaciones hasta 12-sep-2025) =======
+    const ages = [0,1,2,3,4,5,6];
+    const cohorts = [
+      { cohort: "2025-02", N: 9,  values: [11.1111, 11.1111, 11.1111, 11.1111, 11.1111, 22.2222, 33.3333] },
+      { cohort: "2025-03", N: 3,  values: [0.0000, 33.3333, 33.3333, 33.3333, 66.6667, 66.6667, 66.6667] },
+      { cohort: "2025-04", N: 17, values: [0.0000, 11.7647, 23.5294, 23.5294, 23.5294, 29.4118, 29.4118] },
+      { cohort: "2025-05", N: 31, values: [3.2258, 6.4516, 6.4516, 16.1290, 16.1290, 16.1290, null] },
+      { cohort: "2025-06", N: 93, values: [2.1505, 6.4516, 10.7527, 20.4301, 20.4301, null, null] },
+      { cohort: "2025-07", N: 121, values: [5.7851, 12.3967, 22.3140, 22.3140, null, null, null] },
+      { cohort: "2025-08", N: 157, values: [5.0955, 9.5541, 9.5541, null, null, null, null] },
+      { cohort: "2025-09", N: 118, values: [0.8475, 0.8475, null, null, null, null, null] },
+    ];
+
+    // Corte de datos (no poblar edades futuras)
+    const cutDate = new Date('2025-10-01');
+    function observableAgeForCohort(cohortStr){
+      const [y, m] = cohortStr.split('-').map(Number);
+      const cutY = cutDate.getFullYear();
+      const cutM = cutDate.getMonth() + 1; // 1..12
+      let diff = (cutY - y) * 12 + (cutM - m); // m0=0, m1=1, etc.
+      if (diff < 0) diff = -1; // cohorte futura (no debería ocurrir)
+      return Math.min(diff, ages[ages.length - 1]);
+    }
+
+    // Paleta para bordes de fila
+    const palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"];
+
+    // ======= Utilidades =======
+    const fmtPct = (v) => (v==null || Number.isNaN(v)) ? '—' : v.toFixed(1) + '%';
+    const lastDefined = (arr) => { for (let i=arr.length-1;i>=0;i--) if (arr[i]!=null) return arr[i]; return null; };
+    const peakInRange = (arr, s, e) => { let mx=null; for(let i=s;i<=e && i<arr.length;i++){ const v=arr[i]; if(v!=null) mx = mx==null ? v : Math.max(mx,v);} return mx; };
+
+    // Dominio de color (se recalcula con el corte y la edad observable)
+    let domainMax = 40; // se actualizará en renderTable()
+
+    function colorFor(value, metric){
+      if(value==null) return '#0b0c0f';
+      const risk = metric==='cancel' ? value : (100 - value); // en supervivencia, verde alto = valor alto
+      const t = Math.max(0, Math.min(1, risk / domainMax));
+      const hue = 120 * (1 - t); // 120 (verde) -> 0 (rojo)
+      const light = 40 + 20*(1 - t);
+      return `hsl(${hue} 70% ${light}%)`;
+    }
+
+    // Estado UI
+    let metric = 'cancel'; // 'cancel' | 'survive'
+    let sortBy = 'cohort';
+    let selectedCohort = null;
+
+    // Elementos
+    const tbody = document.getElementById('tbody');
+    const titleEl = document.getElementById('matrix-title');
+    const noteEl = document.getElementById('selected-note');
+    const btnCancel = document.getElementById('btn-cancel');
+    const btnSurvive = document.getElementById('btn-survive');
+    const selectSort = document.getElementById('sort');
+
+    function renderLegend(){
+      const holder = document.getElementById('legend-swatches');
+      holder.innerHTML = '';
+      const steps = [0,0.25,0.5,0.75,1];
+      steps.forEach(t => {
+        const val = t * domainMax;
+        const hue = 120*(1 - t);
+        const bg = `hsl(${hue} 70% ${40 + 20*(1 - t)}%)`;
+        const div = document.createElement('div');
+        div.className = 'swatch';
+        div.style.background = bg;
+        div.title = val.toFixed(0) + '%';
+        holder.appendChild(div);
+      });
+      const caption = document.getElementById('legend-caption');
+      caption.textContent = `0% → ${domainMax.toFixed(0)}% (y más)`;
+    }
+
+    function sortedRows(){
+      const rows = cohorts.map((r, idx) => ({...r, _color: palette[idx % palette.length]}));
+      if (sortBy==='N') return rows.sort((a,b)=> b.N - a.N);
+      if (sortBy==='final') return rows.sort((a,b)=> (lastDefined(b.values) ?? -1) - (lastDefined(a.values) ?? -1));
+      if (sortBy==='peak13') return rows.sort((a,b)=> (peakInRange(b.values,1,3) ?? -1) - (peakInRange(a.values,1,3) ?? -1));
+      return rows; // cohort asc (ya vienen ordenadas)
+    }
+
+    function renderTable(){
+      // Recalcula dominio con edades observables al corte
+      let obsMax = 0;
+      cohorts.forEach(r => {
+        const k = observableAgeForCohort(r.cohort);
+        for (let i=0; i<=k && i<r.values.length; i++){
+          const v = r.values[i];
+          if (v!=null) obsMax = Math.max(obsMax, v);
+        }
+      });
+      domainMax = Math.max(obsMax, 40);
+      renderLegend();
+
+      titleEl.textContent = metric==='cancel' ? 'Cancelación acumulada % por cohorte y edad' : 'Supervivencia % por cohorte y edad';
+      tbody.innerHTML = '';
+      const rows = sortedRows();
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'row' + (selectedCohort===r.cohort ? ' selected' : '');
+        tr.dataset.cohort = r.cohort;
+        tr.addEventListener('click', ()=> { selectedCohort = r.cohort; renderTable(); updateSelectedNote(); });
+
+        const tdCoh = document.createElement('td');
+        tdCoh.className = 'cohortCell';
+        tdCoh.style.borderLeftColor = r._color;
+        tdCoh.innerHTML = `<strong>${r.cohort}</strong>`;
+        tr.appendChild(tdCoh);
+
+        const tdN = document.createElement('td');
+        tdN.textContent = r.N;
+        tr.appendChild(tdN);
+
+        ages.forEach(a => {
+          const maxAge = observableAgeForCohort(r.cohort);
+          const td = document.createElement('td');
+          td.style.textAlign = 'center';
+          td.dataset.age = 'm' + a;
+          if (a > maxAge) {
+            td.textContent = '—'; // sin dato observable todavía
+            td.style.background = '';
+          } else {
+            const raw = r.values[a];
+            const shown = raw==null ? null : (metric==='cancel' ? raw : (100-raw));
+            const bg = colorFor(raw, metric);
+            td.style.background = bg;
+            td.title = `m${a}: ${fmtPct(shown)}`;
+            td.innerHTML = `<span style="display:inline-block;padding:2px 4px">${fmtPct(shown)}</span>`;
+          }
+          tr.appendChild(td);
+        });
+
+        // Último valor observado hasta la edad observable
+        const k = Math.min(observableAgeForCohort(r.cohort), r.values.length - 1);
+        let finIdx = -1;
+        for (let i=k; i>=0; i--) { if (r.values[i] != null) { finIdx = i; break; } }
+        const finRaw = finIdx >= 0 ? r.values[finIdx] : null;
+        const finShown = finRaw==null ? null : (metric==='cancel' ? finRaw : (100 - finRaw));
+        const tdFin = document.createElement('td');
+        tdFin.style.textAlign = 'center';
+        tdFin.style.fontWeight = 600;
+        tdFin.textContent = finRaw==null ? '—' : `${fmtPct(finShown)} (m${finIdx})`;
+        tr.appendChild(tdFin);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateSelectedNote(){
+      if(!selectedCohort){
+        noteEl.textContent = 'Tip: haz clic en una fila para seleccionarla (luego podremos abrir el Panel D/E con esa cohorte).';
+      } else {
+        noteEl.textContent = 'Cohorte seleccionada: ' + selectedCohort + ' — usaremos esta selección para abrir el Panel D/E.';
+      }
+    }
+
+    function setMetric(next){
+      metric = next;
+      btnCancel.setAttribute('aria-pressed', next==='cancel');
+      btnSurvive.setAttribute('aria-pressed', next==='survive');
+      renderTable();
+    }
+
+    // ======= KPIs por pólizas (datos fijos del corte) =======
+    const polData = {
+      emissions: 549,
+      canceled_obs: 80,
+      young_early: 42, // cancelaciones ≤90d en cohortes jóvenes (Jul–Ago)
+      tail_factor: 0.67,
+      buckets: [
+        { name: '0 días', n: 11 },
+        { name: '2–29 días', n: 20 },
+        { name: '30–59 días', n: 23 },
+        { name: '60–89 días', n: 16 },
+        { name: '≥90 días', n: 10 },
+      ],
+    };
+
+    function pct(x){ return (x*100).toFixed(1) + '%'; }
+    function renderKPIs(){
+      const add = Math.round(polData.young_early * polData.tail_factor); // ≈ 19
+      const totalProj = polData.canceled_obs + add; // 77
+      const rateObs = polData.canceled_obs / polData.emissions; // 13.5%
+      const rateProj = totalProj / polData.emissions; // 17.9%
+      document.getElementById('kpi-emis').textContent = polData.emissions.toLocaleString('es-CL');
+      document.getElementById('kpi-canc-obs').textContent = polData.canceled_obs.toLocaleString('es-CL');
+      document.getElementById('kpi-rate-obs').textContent = pct(rateObs);
+      document.getElementById('kpi-tail-add').textContent = '≈ ' + add.toLocaleString('es-CL');
+      document.getElementById('kpi-canc-proj').textContent = totalProj.toLocaleString('es-CL');
+      document.getElementById('kpi-rate-proj').textContent = pct(rateProj);
+    }
+
+    function renderBuckets(){
+      const tbody = document.querySelector('#bucket-table tbody');
+      tbody.innerHTML = '';
+      const total = polData.buckets.reduce((s,b)=>s+b.n,0);
+      polData.buckets.forEach(b =>{
+        const tr = document.createElement('tr');
+        const td1 = document.createElement('td'); td1.textContent = b.name; tr.appendChild(td1);
+        const td2 = document.createElement('td'); td2.textContent = b.n; tr.appendChild(td2);
+        const td3 = document.createElement('td'); td3.textContent = total? ((b.n/total*100).toFixed(1)+'%') : '—'; tr.appendChild(td3);
+        tbody.appendChild(tr);
+      });
+      document.getElementById('bucket-total').textContent = total.toLocaleString('es-CL');
+    }
+
+    // ======= Tests (dev) =======
+    function runTests(){
+      const out = document.getElementById('test-output');
+      const logs = [];
+      function ok(name, cond){
+        if(cond){ logs.push(`✅ ${name}`); }
+        else { logs.push(`❌ ${name}`); }
+      }
+      try {
+        // 1) Encabezados correctos (10 columnas)
+        const ths = document.querySelectorAll('#matrix thead th');
+        ok('encabezados = 10 columnas', ths.length === 10);
+
+        // 2) Cohorte Ago-25: m0 y m1 con datos; m2..m6 = '—'
+        const rowAgo = [...document.querySelectorAll('#tbody tr')].find(tr => tr.dataset.cohort === '2025-08');
+        const cellsAgo = rowAgo ? rowAgo.querySelectorAll('td') : [];
+        // indices: 0=cohorte,1=N, 2=m0,3=m1,4=m2..8=m6,9=final
+        const m0Ago = cellsAgo[2]?.innerText.trim();
+        const m1Ago = cellsAgo[3]?.innerText.trim();
+        const emptiesAgo = [cellsAgo[4],cellsAgo[5],cellsAgo[6],cellsAgo[7],cellsAgo[8]].every(td => td && td.innerText.trim() === '—' && (td.style.background === '' || td.style.background === ''));
+        ok('Ago-25 m0 poblado', !!m0Ago && m0Ago !== '—');
+        ok('Ago-25 m1 poblado', !!m1Ago && m1Ago !== '—');
+        ok('Ago-25 m2–m6 vacíos y sin color', emptiesAgo);
+
+        // 3) Cohorte Jul-25: m0..m2 con datos; m3..m6 = '—'
+        const rowJul = [...document.querySelectorAll('#tbody tr')].find(tr => tr.dataset.cohort === '2025-07');
+        const cellsJul = rowJul ? rowJul.querySelectorAll('td') : [];
+        const emptiesJul = [cellsJul[5],cellsJul[6],cellsJul[7],cellsJul[8]].every(td => td && td.innerText.trim() === '—');
+        ok('Jul-25 m0–m2 poblados', [cellsJul[2],cellsJul[3],cellsJul[4]].every(td => td && td.innerText.trim() !== '—'));
+        ok('Jul-25 m3–m6 vacíos', emptiesJul);
+
+        // 4) Final % etiqueta con mK
+        const finalAgo = cellsAgo[9]?.innerText.trim() || '';
+        ok('Final Ago-25 muestra (m1)', finalAgo.includes('(m2)'));
+
+        out.innerHTML = logs.map(function(line){ var cls = line.indexOf('✅')===0 ? 'pass' : 'fail'; return '<div class="' + cls + '">' + line + '</div>'; }).join('');
+
+        // 5) KPIs muestran valores esperados
+        const rateObsEl = document.getElementById('kpi-rate-obs');
+        const rateProjEl = document.getElementById('kpi-rate-proj');
+        ok('KPI Fuga observada = 14.6%', rateObsEl && rateObsEl.textContent.trim() === '14.6%');
+        ok('KPI Fuga 24m ≈ 19.7%', rateProjEl && rateProjEl.textContent.trim() === '19.7%');
+
+        // 6) Buckets suman 58
+        const totalBuckets = parseInt(document.getElementById('bucket-total').textContent.replace(/[^0-9]/g,''),10);
+        ok('Buckets total = 80', totalBuckets === 58);
+      } catch (e){
+        out.innerHTML = `<div class="fail">Error en tests: ${e.message}</div>`;
+      }
+    }
+
+    // Eventos
+    btnCancel.addEventListener('click', ()=> setMetric('cancel'));
+    btnSurvive.addEventListener('click', ()=> setMetric('survive'));
+    selectSort.addEventListener('change', (e)=> { sortBy = e.target.value; renderTable(); runTests(); });
+
+    // Init
+    renderLegend();
+    renderTable();
+    renderKPIs();
+    renderBuckets();
+    updateSelectedNote();
+    runTests();
+  </script>
+</body>
+</html>
